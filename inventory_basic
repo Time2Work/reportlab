@@ -1,0 +1,106 @@
+'''take csv of prices and quantities to compile a summary report with: 
+   1. create barcodes for price points
+   2. add totals for each price point
+   3. list created barcode, total quantity, and price  for each price point in the csv. '''
+   
+import pandas as pd
+import csv 
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+from reportlab.graphics.barcode import code128
+from random import randint
+
+# Define the functions needed:
+# Functions to Create pdf Report TAGS to scan containing barcode, Quantity,and Price from summarized 
+# Report
+
+# barcode needs to be exactly 6 characters regardless of price.
+def conv_price_to_barcode(num):
+  string_price = num
+  if len(string_price) == 3:
+    low_random = randint(1,9)
+    last_digits = '00' + str(low_rand)
+  elif len(string_price) == 4:
+    last_digits = str(randint(10,99))
+  else:
+    just_random = randint(0,9)
+    last_digits = str(just_random)
+  code = string_price.replace('.','0') + last_digits
+  return code
+
+def small_pdf_label(retail_price,qty):
+  # the label contains 3 elements. The barcode is created from price
+  price = retail_price
+  #float(price)
+  qty = qty
+  string_qty = str(qty)   
+        
+  # create barcode number. price= whole $ +  0 representing a decimal + two digit cents + random 2 digits. for a 6 digit code.
+  price = float(price)
+  string_price = str(price)
+
+  item_name = string_price
+  code = conv_price_to_barcode(string_price)
+
+  # path to folder where the label pdf's are saved
+  save_to_folder = 'inventory_tags/'
+  # prefix added to label name for quick identification. item_name is added to the end of the prefix for the full pdf name.
+  label_name_prefix = 'inventory_count'
+
+  # label size variable which is equiveolent to 2" X 1" used in the next step creating canvas (pagesize=mall_label).  
+  small_label = (50.0*mm, 25.4*mm)
+
+  # generate a canvas size to small label
+  c=canvas.Canvas(f"{save_to_folder}/{label_name_prefix} {item_name}.pdf", pagesize=small_label)
+  # create a barcode object not used until the .drawOn method is called
+  # barHeight encodes the bars height. 
+  # barWidth encodes how wide the "narrowest" barcode unit is
+  barcode=code128.Code128(code, barWidth=0.5*mm, barHeight=10*mm)
+
+  #item_code_number drawString puts the string on the canvas at the specified coordinates
+  c.drawString(20,58,code)
+
+  #item_barcode drawOn puts the barcode on the canvas at the specified coordinates
+  barcode.drawOn(c,0*mm,9*mm)
+
+  c.setFont('Helvetica-Bold',15)  
+  #item_name drawString puts the string on the canvas at the specified coordinates
+  c.drawString(4,6,string_price)
+
+  # qty drawString puts the string on the canvas at the specified coordinates
+  c.drawString(100,6,string_qty)
+
+  # now create the actual PDF, must save page before starting another page. no settings are saved between pages
+  c.showPage()
+  c.save()
+  return 'label saved'
+
+
+# start the work:
+
+#  ____SET THIS FOR EACH SECTION:________
+# path and name of input file:  
+csv_input = 'inventory_inputs/meat.bunker.csv'
+
+data = pd.read_csv(csv_input)
+
+# ____STAGE 1_____:  Use pandas to total all counts for each price point.
+# from data select all rows, col 1 (Quantity) and col 3 (PRICE)
+df = data.iloc[:, [1,3]]
+# group by price point with sum of all counts for that price.
+report = df.groupby(['PRICE']).sum()
+# save as csv to process further.
+report.to_csv(f'report.csv')
+
+total_rows = report.count()
+print(total_rows)
+# ____STAGE 2 ____: create barcode tags with Total Quantity for each price point:
+
+with open('report.csv') as file:
+    reader = csv.reader(file, delimiter=',')
+    next(reader)
+    for row in reader:
+        price = row[0]
+        qty = row[1]
+        small_pdf_label(price, qty)
